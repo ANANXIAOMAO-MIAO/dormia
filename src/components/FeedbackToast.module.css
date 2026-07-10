@@ -1,6 +1,6 @@
 .toast {
   position: absolute;
-  top: 40px;
+  top: 50%;
   left: 50%;
   z-index: 20;
   transform: translate(-50%, -50%);
@@ -25,5 +25,5 @@
 
 .visible {
   opacity: 1;
-  transform: translate(-50%, -58%);
+  transform: translate(-50%, -50%);
 }
