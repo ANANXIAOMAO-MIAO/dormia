@@ -1,0 +1,61 @@
+:root {
+  /* ─── Color ─────────────────────────────────── */
+  --color-bg: #f6f1fb;
+  --color-bg-secondary: #efe7fa;
+  --color-surface: rgba(255, 255, 255, 0.42);
+  --color-border: rgba(156, 141, 205, 0.35);
+
+  /* 浅色粉紫雾面系 */
+  --color-accent: #9a86d8;
+  --color-accent-strong: #b39de9;
+  --color-accent-soft: rgba(179, 157, 233, 0.24);
+  --color-glow-default: rgba(178, 148, 242, 0.52);
+  --color-glow-soft: rgba(167, 182, 239, 0.42);
+  --color-text-primary: rgba(76, 62, 132, 0.94);
+  --color-text-secondary: rgba(106, 89, 160, 0.8);
+  --color-text-muted: rgba(125, 110, 175, 0.62);
+
+  /* ─── Glow ───────────────────────────────────── */
+  --glow-radius-sm: 18px;
+  --glow-radius-md: 32px;
+  --glow-radius-lg: 56px;
+  --glow-radius-node: 28px;
+
+  /* ─── Spacing ────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+
+  /* ─── Typography ─────────────────────────────── */
+  --font-sans: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-serif: 'Cormorant Garamond', 'Georgia', 'Palatino', serif;
+  --font-size-sm: 13px;
+  --font-size-base: 15px;
+  --font-size-md: 17px;
+  --font-size-lg: 20px;
+  --font-size-xl: 26px;
+  --line-height-relaxed: 1.7;
+  --letter-spacing-wide: 0.04em;
+
+  /* ─── Motion ─────────────────────────────────── */
+  --motion-fast: 200ms;
+  --motion-base: 400ms;
+  --motion-slow: 700ms;
+  --motion-xslow: 1200ms;
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-emerge: cubic-bezier(0.2, 0, 0.1, 1);
+
+  /* ─── Radius ─────────────────────────────────── */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-full: 9999px;
+}
