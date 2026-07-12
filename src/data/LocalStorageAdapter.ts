@@ -6,6 +6,13 @@ import { getClusterColor } from '@/lib/palette';
 const KEY = 'dormia.state.v1';
 const EMPTY: DormiaState = { version: 3, ideas: [], clusters: [] };
 
+export class StorageLoadError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StorageLoadError';
+  }
+}
+
 function normalizeState(raw: unknown): DormiaState {
   if (typeof raw !== 'object' || raw === null) return structuredClone(EMPTY);
   const src = raw as Partial<DormiaState>;
@@ -75,16 +82,23 @@ function normalizeState(raw: unknown): DormiaState {
 
 export class LocalStorageAdapter implements StorageAdapter {
   async load(): Promise<DormiaState> {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return structuredClone(EMPTY);
+
     try {
-      const raw = localStorage.getItem(KEY);
-      if (!raw) return structuredClone(EMPTY);
       return normalizeState(JSON.parse(raw) as unknown);
     } catch {
-      return structuredClone(EMPTY);
+      throw new StorageLoadError('Failed to parse dormia state from localStorage');
     }
   }
 
   async save(state: DormiaState): Promise<void> {
-    localStorage.setItem(KEY, JSON.stringify(state));
+    try {
+      localStorage.setItem(KEY, JSON.stringify(state));
+    } catch (err) {
+      throw new StorageLoadError(
+        err instanceof Error ? err.message : 'Failed to save dormia state to localStorage',
+      );
+    }
   }
 }

@@ -26,16 +26,19 @@
 
 .anchor {
   position: absolute;
-  transform: translate(0, -50%);
   display: inline-flex;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 2px 0;
+  min-width: 96px;
+  min-height: 96px;
+  padding: 8px;
   border: none;
   background: transparent;
   cursor: pointer;
   pointer-events: auto;
   text-align: left;
+  transform-origin: center center;
 }
 
 .plus {

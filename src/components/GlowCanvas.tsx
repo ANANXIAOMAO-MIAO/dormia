@@ -2,6 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import styles from './GlowCanvas.module.css';
 import type { Cluster, Idea } from '@/data/types';
+import {
+  clampCylinderRotation,
+  findIdeaAtPoint,
+  projectCylinderPoint,
+  type CylinderViewState,
+  type ViewPadding,
+} from '@/lib/cylinderProjection';
 import { glowStopsRich } from '@/lib/glowColor';
 import { displayKeyword } from '@/lib/keywordDisplay';
 import { DEFAULT_GLOW_COLOR } from '@/lib/palette';
@@ -13,12 +20,6 @@ interface GlowCanvasProps {
   newIdeaId?: string | null;
 }
 
-interface ViewState {
-  offsetX: number;
-  offsetY: number;
-  scale: number;
-}
-
 interface NodeAnim {
   ideaId: string;
   progress: number;
@@ -27,6 +28,15 @@ interface NodeAnim {
 const DIFFUSE_CORE = 40;
 const DIFFUSE_OUTER = 128;
 const GLOW_ALPHA_BOOST = 1.15;
+const DRAG_THRESHOLD = 6;
+const ROTATION_SENSITIVITY = 0.004;
+
+const VIEW_PAD: ViewPadding = {
+  left: 24,
+  right: 24,
+  top: 16,
+  bottom: 32,
+};
 
 function hashPhase(id: string): number {
   let h = 0;
@@ -64,27 +74,15 @@ function applyDiffuseGradient(
   return gradient;
 }
 
-function projectPoint(
-  idea: Idea,
-  width: number,
-  height: number,
-  view: ViewState,
-): { x: number; y: number } {
-  return {
-    x: idea.position.x * width * view.scale + view.offsetX,
-    y: idea.position.y * height * view.scale + view.offsetY,
-  };
-}
-
 export function GlowCanvas({ ideas, clusters, onSelectIdea, newIdeaId }: GlowCanvasProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const viewRef = useRef<ViewState>({ offsetX: 0, offsetY: 0, scale: 1 });
+  const viewRef = useRef<CylinderViewState>({ rotation: 0 });
   const draggingRef = useRef(false);
   const lastPosRef = useRef({ x: 0, y: 0 });
   const animsRef = useRef<Map<string, NodeAnim>>(new Map());
   const rafRef = useRef<number>(0);
-  const [view, setView] = useState<ViewState>({ offsetX: 0, offsetY: 0, scale: 1 });
+  const [view, setView] = useState<CylinderViewState>({ rotation: 0 });
   const [size, setSize] = useState({ w: 0, h: 0 });
 
   useEffect(() => {
@@ -103,12 +101,28 @@ export function GlowCanvas({ ideas, clusters, onSelectIdea, newIdeaId }: GlowCan
     return () => observer.disconnect();
   }, []);
 
+  const applyRotation = useCallback(
+    (rotation: number) => {
+      const clamped = clampCylinderRotation(rotation, ideas, size.w, size.h, VIEW_PAD, DIFFUSE_OUTER);
+      viewRef.current = { rotation: clamped };
+      setView({ rotation: clamped });
+      return clamped;
+    },
+    [ideas, size.w, size.h],
+  );
+
   const draw = useCallback(
     (ctx: CanvasRenderingContext2D, w: number, h: number, timestamp: number) => {
       ctx.clearRect(0, 0, w, h);
       const currentView = viewRef.current;
 
-      for (const idea of ideas) {
+      const sorted = [...ideas].sort((a, b) => {
+        const za = Math.cos(a.position.x * Math.PI * 2 + currentView.rotation);
+        const zb = Math.cos(b.position.x * Math.PI * 2 + currentView.rotation);
+        return za - zb;
+      });
+
+      for (const idea of sorted) {
         const anim = animsRef.current.get(idea.id);
         if (anim && anim.progress < 1) {
           anim.progress = Math.min(1, anim.progress + 0.014);
@@ -118,19 +132,21 @@ export function GlowCanvas({ ideas, clusters, onSelectIdea, newIdeaId }: GlowCan
 
         const phase = hashPhase(idea.id);
         const breath = 0.86 + 0.14 * Math.sin(timestamp * 0.0011 + phase);
-        const { x: cx, y: cy } = projectPoint(idea, w, h, currentView);
-        const outerR = DIFFUSE_OUTER * breath * eased * currentView.scale;
-        const coreR = DIFFUSE_CORE * breath * 0.85 * eased * currentView.scale;
+        const projected = projectCylinderPoint(idea.position.x, idea.position.y, w, h, currentView);
+        const { x: cx, y: cy, depthScale, opacity: depthOpacity } = projected;
+        const outerR = DIFFUSE_OUTER * breath * eased * depthScale;
+        const coreR = DIFFUSE_CORE * breath * 0.85 * eased * depthScale;
         const color = getClusterColor(idea, clusters);
+        const alphaScale = breath * eased * depthOpacity;
 
         ctx.beginPath();
         ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
-        ctx.fillStyle = applyDiffuseGradient(ctx, cx, cy, outerR, color, breath * eased);
+        ctx.fillStyle = applyDiffuseGradient(ctx, cx, cy, outerR, color, alphaScale);
         ctx.fill();
 
         ctx.beginPath();
         ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
-        ctx.fillStyle = applyDiffuseGradient(ctx, cx, cy, coreR, color, Math.min(1, breath * eased * 1.08));
+        ctx.fillStyle = applyDiffuseGradient(ctx, cx, cy, coreR, color, Math.min(1, alphaScale * 1.08));
         ctx.fill();
 
         if (idea.isUnread) {
@@ -138,7 +154,7 @@ export function GlowCanvas({ ideas, clusters, onSelectIdea, newIdeaId }: GlowCan
           const ringR = coreR + 10 + pulse * 8;
           ctx.beginPath();
           ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(255, 255, 255, ${0.28 + pulse * 0.32})`;
+          ctx.strokeStyle = `rgba(255, 255, 255, ${(0.28 + pulse * 0.32) * depthOpacity})`;
           ctx.lineWidth = 1.4;
           ctx.stroke();
         }
@@ -163,9 +179,10 @@ export function GlowCanvas({ ideas, clusters, onSelectIdea, newIdeaId }: GlowCan
     if (!ctx) return;
     cancelAnimationFrame(rafRef.current);
     if (ideas.length === 0) return;
+    applyRotation(viewRef.current.rotation);
     draw(ctx, size.w, size.h, performance.now());
     return () => cancelAnimationFrame(rafRef.current);
-  }, [draw, size, ideas]);
+  }, [draw, size, ideas, applyRotation]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('button')) return;
@@ -177,37 +194,35 @@ export function GlowCanvas({ ideas, clusters, onSelectIdea, newIdeaId }: GlowCan
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const dx = e.clientX - lastPosRef.current.x;
     const dy = e.clientY - lastPosRef.current.y;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) draggingRef.current = true;
+    if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
+      draggingRef.current = true;
+    }
     if (!e.buttons) return;
 
-    const next = {
-      ...viewRef.current,
-      offsetX: viewRef.current.offsetX + dx,
-      offsetY: viewRef.current.offsetY + dy,
-    };
-    viewRef.current = next;
-    setView(next);
+    applyRotation(viewRef.current.rotation - dx * ROTATION_SENSITIVITY);
     lastPosRef.current = { x: e.clientX, y: e.clientY };
 
     const ctx = canvasRef.current?.getContext('2d');
     if (ctx && size.w > 0) draw(ctx, size.w, size.h, performance.now());
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!draggingRef.current && ideas.length > 0 && rootRef.current) {
+      const rect = rootRef.current.getBoundingClientRect();
+      const localX = e.clientX - rect.left;
+      const localY = e.clientY - rect.top;
+      const hit = findIdeaAtPoint(
+        ideas,
+        localX,
+        localY,
+        size.w,
+        size.h,
+        viewRef.current,
+        DIFFUSE_CORE,
+      );
+      if (hit) onSelectIdea(hit);
+    }
     draggingRef.current = false;
-  };
-
-  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.06 : 0.94;
-    const next = {
-      ...viewRef.current,
-      scale: Math.max(0.5, Math.min(2.2, viewRef.current.scale * factor)),
-    };
-    viewRef.current = next;
-    setView(next);
-    const ctx = canvasRef.current?.getContext('2d');
-    if (ctx && size.w > 0) draw(ctx, size.w, size.h, performance.now());
   };
 
   return (
@@ -217,20 +232,25 @@ export function GlowCanvas({ ideas, clusters, onSelectIdea, newIdeaId }: GlowCan
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onWheel={handleWheel}
       aria-label="深处：你的念头散布于此"
     >
       <canvas ref={canvasRef} className={styles.canvas} />
       <div className={styles.anchors} aria-hidden={false}>
         {ideas.map((idea) => {
-          const { x, y } = projectPoint(idea, size.w, size.h, view);
+          const projected = projectCylinderPoint(idea.position.x, idea.position.y, size.w, size.h, view);
           const label = displayKeyword(idea.keyword, idea.text);
+          const depthOpacity = projected.opacity;
           return (
             <button
               key={idea.id}
               type="button"
               className={`${styles.anchor} ${idea.isUnread ? styles.unread : ''}`}
-              style={{ left: x, top: y }}
+              style={{
+                left: projected.x,
+                top: projected.y,
+                transform: `translate(-50%, -50%) scale(${projected.depthScale})`,
+                opacity: depthOpacity,
+              }}
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => onSelectIdea(idea)}
               aria-label={`${label}：${idea.text}`}

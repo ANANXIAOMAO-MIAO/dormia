@@ -1,13 +1,13 @@
 import type { Position } from '@/data/types';
 
 const MARGIN = 0.08;
-/** 介于旧版(0.34/0.23)与加宽版(0.38/0.28)之间 */
-const CLUSTER_RADIUS_X = 0.36;
-const CLUSTER_RADIUS_Y = 0.255;
 
+/**
+ * 柱面坐标：x = 归一化角度 [0, 1)，y = 柱面高度 [MARGIN, 1-MARGIN]。
+ */
 export function randomPosition(): Position {
   return {
-    x: MARGIN + Math.random() * (1 - MARGIN * 2),
+    x: Math.random(),
     y: MARGIN + Math.random() * (1 - MARGIN * 2),
   };
 }
@@ -16,24 +16,27 @@ function clamp01(v: number): number {
   return Math.max(MARGIN, Math.min(1 - MARGIN, v));
 }
 
+function wrapAngle01(v: number): number {
+  let x = v % 1;
+  if (x < 0) x += 1;
+  return x;
+}
+
 function seeded(index: number, salt: number): number {
   const x = Math.sin(index * 12.9898 + salt * 78.233) * 43758.5453;
   return x - Math.floor(x);
 }
 
+/** 分组锚点在柱面上的角度与高度 */
 export function clusterAnchorPosition(index: number, total: number): Position {
   if (total <= 1) {
     return { x: 0.5, y: 0.5 };
   }
   const golden = Math.PI * (3 - Math.sqrt(5));
-  const angle = index * golden + seeded(index, 3) * 0.8;
-  const depth = 0.58 + seeded(index, 7) * 0.42;
-  const radialX = CLUSTER_RADIUS_X * (0.58 + depth * 0.58);
-  const radialY = CLUSTER_RADIUS_Y * (0.44 + depth * 0.72);
-  const yNoise = (seeded(index, 11) - 0.5) * 0.1;
+  const angleRad = index * golden + seeded(index, 3) * 0.8;
   return {
-    x: clamp01(0.5 + Math.sin(angle) * radialX),
-    y: clamp01(0.5 + Math.cos(angle * 0.88) * radialY + yNoise),
+    x: wrapAngle01(angleRad / (Math.PI * 2)),
+    y: clamp01(0.34 + seeded(index, 7) * 0.42),
   };
 }
 
@@ -45,19 +48,33 @@ function hashString(value: string): number {
   return h;
 }
 
-/**
- * 在分组锚点附近生成成员位置。
- * spread 取旧版(0.02~0.10)与加宽版(0.06~0.20)的中间值，保留聚堆感。
- */
+/** 同组成员在锚点周围的角向/高度散布基数（归一化） */
+const CLUSTER_ANGLE_SPREAD = 0.018;
+const CLUSTER_HEIGHT_SPREAD = 0.038;
+
+/** 在分组锚点附近的柱面位置（金角螺旋，同组聚堆） */
 export function clusteredIdeaPosition(anchor: Position, ideaId: string, rank: number): Position {
+  if (rank === 0) {
+    const hash = hashString(ideaId);
+    const micro = 0.002;
+    return {
+      x: wrapAngle01(anchor.x + ((hash % 89) / 89 - 0.5) * micro),
+      y: clamp01(anchor.y + (((hash >> 4) % 89) / 89 - 0.5) * micro),
+    };
+  }
+
   const hash = hashString(ideaId);
-  const angle = (((hash % 360) / 360) * Math.PI * 2) + rank * 0.4;
-  const depth = ((hash >> 7) % 100) / 100;
-  const spread = 0.02 + depth * 0.02 + Math.min(rank, 7) * 0.002;
-  const xScale = 1.1 - depth * 0.29;
-  const yScale = 0.75 + depth * 0.25;
+  const golden = Math.PI * (3 - Math.sqrt(5));
+  const t = rank + ((hash % 97) / 97) * 0.35;
+  const ring = Math.max(1, Math.ceil(Math.sqrt(t * 0.85)));
+  const ringScale = 0.72 + (ring - 1) * 0.28;
+
+  const spiral = t * golden + ((hash % 360) / 360) * 0.22;
+  const angleOffset = Math.cos(spiral) * CLUSTER_ANGLE_SPREAD * ringScale;
+  const heightOffset = Math.sin(spiral) * CLUSTER_HEIGHT_SPREAD * ringScale;
+
   return {
-    x: clamp01(anchor.x + Math.cos(angle) * spread * xScale),
-    y: clamp01(anchor.y + Math.sin(angle) * spread * yScale),
+    x: wrapAngle01(anchor.x + angleOffset),
+    y: clamp01(anchor.y + heightOffset),
   };
 }

@@ -81,21 +81,26 @@ export const useIdeasStore = create<IdeasState>((set, get) => ({
   initialized: false,
 
   init: async () => {
-    const state = await repo.getAll();
-    const relayout = relayoutByCluster(state.ideas, state.clusters);
-    const positionsChanged =
-      relayout.ideas.some((idea) => {
-        const prev = state.ideas.find((item) => item.id === idea.id);
-        return !prev || prev.position.x !== idea.position.x || prev.position.y !== idea.position.y;
-      }) ||
-      relayout.clusters.some((cluster) => {
-        const prev = state.clusters.find((item) => item.id === cluster.id);
-        return !prev || prev.anchor.x !== cluster.anchor.x || prev.anchor.y !== cluster.anchor.y;
-      });
-    if (positionsChanged) {
-      await repo.replaceState({ version: 3, ideas: relayout.ideas, clusters: relayout.clusters });
+    try {
+      const state = await repo.getAll();
+      const relayout = relayoutByCluster(state.ideas, state.clusters);
+      const positionsChanged =
+        relayout.ideas.some((idea) => {
+          const prev = state.ideas.find((item) => item.id === idea.id);
+          return !prev || prev.position.x !== idea.position.x || prev.position.y !== idea.position.y;
+        }) ||
+        relayout.clusters.some((cluster) => {
+          const prev = state.clusters.find((item) => item.id === cluster.id);
+          return !prev || prev.anchor.x !== cluster.anchor.x || prev.anchor.y !== cluster.anchor.y;
+        });
+      if (positionsChanged) {
+        await repo.replaceState({ version: 3, ideas: relayout.ideas, clusters: relayout.clusters });
+      }
+      set({ ideas: relayout.ideas, clusters: relayout.clusters, initialized: true });
+    } catch (err) {
+      console.error('[dormia] init failed:', err);
+      set({ ideas: [], clusters: [], initialized: true });
     }
-    set({ ideas: relayout.ideas, clusters: relayout.clusters, initialized: true });
     void get().backfillKeywords();
   },
 

@@ -58,4 +58,7 @@
   --radius-md: 12px;
   --radius-lg: 20px;
   --radius-full: 9999px;
+
+  /* 深处页顶部安全区（导航栏下方） */
+  --depths-safe-top: 72px;
 }
