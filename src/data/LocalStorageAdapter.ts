@@ -1,5 +1,6 @@
 import type { StorageAdapter } from './StorageAdapter';
 import type { Cluster, DormiaState, Idea } from './types';
+import { KEYWORD_MAX_LEN } from '@/lib/keywordDisplay';
 import { randomPosition } from '@/lib/position';
 import { getClusterColor } from '@/lib/palette';
 
@@ -48,7 +49,7 @@ function normalizeState(raw: unknown): DormiaState {
           aiResponse: typeof idea.aiResponse === 'string' ? idea.aiResponse : '',
           aiResponseGeneratedAt:
             typeof idea.aiResponseGeneratedAt === 'number' ? idea.aiResponseGeneratedAt : null,
-          keyword: typeof idea.keyword === 'string' ? idea.keyword.trim().slice(0, 3) : '',
+          keyword: typeof idea.keyword === 'string' ? idea.keyword.trim().slice(0, KEYWORD_MAX_LEN) : '',
           keywordGeneratedAt:
             typeof idea.keywordGeneratedAt === 'number' ? idea.keywordGeneratedAt : null,
           comments: Array.isArray(idea.comments)

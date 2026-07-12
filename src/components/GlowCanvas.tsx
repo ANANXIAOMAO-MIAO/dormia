@@ -199,7 +199,7 @@ export function GlowCanvas({ ideas, clusters, onSelectIdea, newIdeaId }: GlowCan
     }
     if (!e.buttons) return;
 
-    applyRotation(viewRef.current.rotation - dx * ROTATION_SENSITIVITY);
+    applyRotation(viewRef.current.rotation + dx * ROTATION_SENSITIVITY);
     lastPosRef.current = { x: e.clientX, y: e.clientY };
 
     const ctx = canvasRef.current?.getContext('2d');

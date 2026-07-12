@@ -13,7 +13,7 @@ export interface Idea {
   isUnread: boolean;
   aiResponse: string;
   aiResponseGeneratedAt: number | null;
-  /** AI 生成的 1–3 字展示关键词 */
+  /** AI 生成的 1–4 字展示关键词 */
   keyword: string;
   keywordGeneratedAt: number | null;
   comments: IdeaComment[];
